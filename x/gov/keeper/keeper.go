@@ -7,6 +7,10 @@ import (
 	"time"
 
 	"cosmossdk.io/collections"
+	"cosmossdk.io/core/appmodule"
+	"cosmossdk.io/core/event"
+	"cosmossdk.io/core/gas"
+	"cosmossdk.io/core/header"
 	corestoretypes "cosmossdk.io/core/store"
 	"cosmossdk.io/log"
 	"cosmossdk.io/x/gov/types"
@@ -48,6 +52,10 @@ type Keeper struct {
 	// should be the x/gov module account.
 	authority string
 
+	EventService  event.Service
+	HeaderService header.Service
+	gasService    gas.Service
+
 	Schema collections.Schema
 	// Constitution value: constitution
 	Constitution collections.Item[string]
@@ -86,10 +94,11 @@ func (k Keeper) GetAuthority() string {
 //
 // CONTRACT: the parameter Subspace must have the param key table already initialized
 func NewKeeper(
-	cdc codec.Codec, storeService corestoretypes.KVStoreService, authKeeper types.AccountKeeper,
+	env appmodule.Environment, cdc codec.Codec, authKeeper types.AccountKeeper,
 	bankKeeper types.BankKeeper, sk types.StakingKeeper, pk types.PoolKeeper,
 	router baseapp.MessageRouter, config types.Config, authority string,
 ) *Keeper {
+	storeService := env.KVStoreService
 	// ensure governance module account is set
 	if addr := authKeeper.GetModuleAddress(types.ModuleName); addr == nil {
 		panic(fmt.Sprintf("%s module account has not been set", types.ModuleName))
@@ -115,6 +124,9 @@ func NewKeeper(
 
 	sb := collections.NewSchemaBuilder(storeService)
 	k := &Keeper{
+		EventService:           env.EventService,
+		HeaderService:          env.HeaderService,
+		gasService:             env.GasService,
 		storeService:           storeService,
 		authKeeper:             authKeeper,
 		bankKeeper:             bankKeeper,
@@ -175,8 +187,7 @@ func (k *Keeper) SetLegacyRouter(router v1beta1.Router) {
 
 // Logger returns a module-specific logger.
 func (k Keeper) Logger(ctx context.Context) log.Logger {
-	sdkCtx := sdk.UnwrapSDKContext(ctx)
-	return sdkCtx.Logger().With("module", "x/"+types.ModuleName)
+	return ctx.Logger().With("module", "x/"+types.ModuleName)
 }
 
 // Router returns the gov keeper's router

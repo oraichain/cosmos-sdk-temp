@@ -38,7 +38,6 @@ func (k Keeper) SubmitProposal(ctx context.Context, messages []sdk.Msg, metadata
 		}
 	}
 
-	sdkCtx := sdk.UnwrapSDKContext(ctx)
 	msgs := []string{} // will hold a string slice of all Msg type URLs.
 
 	// Loop through all messages and confirm that each has a handler and the gov module account as the only signer
@@ -113,7 +112,7 @@ func (k Keeper) SubmitProposal(ctx context.Context, messages []sdk.Msg, metadata
 		return v1.Proposal{}, err
 	}
 
-	submitTime := sdkCtx.HeaderInfo().Time
+	submitTime :=	k.HeaderService.GetHeaderInfo(ctx).Time
 	proposal, err := v1.NewProposal(messages, proposalID, submitTime, submitTime.Add(*params.MaxDepositPeriod), metadata, title, summary, proposer, proposalType)
 	if err != nil {
 		return v1.Proposal{}, err
@@ -146,7 +145,6 @@ func (k Keeper) SubmitProposal(ctx context.Context, messages []sdk.Msg, metadata
 
 // CancelProposal will cancel proposal before the voting period ends
 func (k Keeper) CancelProposal(ctx context.Context, proposalID uint64, proposer string) error {
-	sdkCtx := sdk.UnwrapSDKContext(ctx)
 	proposal, err := k.Proposals.Get(ctx, proposalID)
 	if err != nil {
 		if errors.Is(err, collections.ErrNotFound) {
@@ -178,7 +176,7 @@ func (k Keeper) CancelProposal(ctx context.Context, proposalID uint64, proposer 
 
 	// Check proposal is not too far in voting period to be canceled
 	if proposal.VotingEndTime != nil {
-		currentTime := sdkCtx.HeaderInfo().Time
+		currentTime := k.HeaderService.GetHeaderInfo(ctx).Time
 
 		maxCancelPeriodRate := sdkmath.LegacyMustNewDecFromStr(params.ProposalCancelMaxPeriod)
 		maxCancelPeriod := time.Duration(float64(proposal.VotingEndTime.Sub(*proposal.VotingStartTime)) * maxCancelPeriodRate.MustFloat64()).Round(time.Second)
@@ -243,8 +241,7 @@ func (k Keeper) DeleteProposal(ctx context.Context, proposalID uint64) error {
 
 // ActivateVotingPeriod activates the voting period of a proposal
 func (k Keeper) ActivateVotingPeriod(ctx context.Context, proposal v1.Proposal) error {
-	sdkCtx := sdk.UnwrapSDKContext(ctx)
-	startTime := sdkCtx.HeaderInfo().Time
+	startTime := k.HeaderService.GetHeaderInfo(ctx).Time
 	proposal.VotingStartTime = &startTime
 
 	params, err := k.Params.Get(ctx)

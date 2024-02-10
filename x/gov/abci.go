@@ -1,6 +1,7 @@
 package gov
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -17,13 +18,13 @@ import (
 )
 
 // EndBlocker is called every block.
-func EndBlocker(ctx sdk.Context, keeper *keeper.Keeper) error {
+func EndBlocker(ctx context.Context, keeper *keeper.Keeper) error {
 	defer telemetry.ModuleMeasureSince(types.ModuleName, time.Now(), telemetry.MetricKeyEndBlocker)
 
 	logger := keeper.Logger(ctx)
 	// delete dead proposals from store and returns theirs deposits.
 	// A proposal is dead when it's inactive and didn't get enough deposit on time to get into voting phase.
-	rng := collections.NewPrefixUntilPairRange[time.Time, uint64](ctx.HeaderInfo().Time)
+	rng := collections.NewPrefixUntilPairRange[time.Time, uint64](keeper.HeaderService.GetHeaderInfo(ctx).Time)
 	err := keeper.InactiveProposalsQueue.Walk(ctx, rng, func(key collections.Pair[time.Time, uint64], _ uint64) (bool, error) {
 		proposal, err := keeper.Proposals.Get(ctx, key.K2())
 		if err != nil {
@@ -65,7 +66,7 @@ func EndBlocker(ctx sdk.Context, keeper *keeper.Keeper) error {
 		}
 
 		// called when proposal become inactive
-		cacheCtx, writeCache := ctx.CacheContext()
+		cacheCtx, writeCache := ctx.CacheContext() // are we adding this to environment.go
 		err = keeper.Hooks().AfterProposalFailedMinDeposit(cacheCtx, proposal.Id)
 		if err == nil { // purposely ignoring the error here not to halt the chain if the hook fails
 			writeCache()
@@ -73,13 +74,10 @@ func EndBlocker(ctx sdk.Context, keeper *keeper.Keeper) error {
 			logger.Error("failed to execute AfterProposalFailedMinDeposit hook", "error", err)
 		}
 
-		ctx.EventManager().EmitEvent(
-			sdk.NewEvent(
-				types.EventTypeInactiveProposal,
-				sdk.NewAttribute(types.AttributeKeyProposalID, fmt.Sprintf("%d", proposal.Id)),
-				sdk.NewAttribute(types.AttributeKeyProposalResult, types.AttributeValueProposalDropped),
-			),
-		)
+		keeper.EventService.EventManager(ctx).Emit(v1.Proposal{
+			Id: proposal.Id,
+			ProposalType: proposal.ProposalType,
+  		})
 
 		logger.Info(
 			"proposal did not meet minimum deposit; deleted",
@@ -97,7 +95,7 @@ func EndBlocker(ctx sdk.Context, keeper *keeper.Keeper) error {
 	}
 
 	// fetch active proposals whose voting periods have ended (are passed the block time)
-	rng = collections.NewPrefixUntilPairRange[time.Time, uint64](ctx.HeaderInfo().Time)
+	rng = collections.NewPrefixUntilPairRange[time.Time, uint64](keeper.HeaderService.GetHeaderInfo(ctx).Time)
 	err = keeper.ActiveProposalsQueue.Walk(ctx, rng, func(key collections.Pair[time.Time, uint64], _ uint64) (bool, error) {
 		proposal, err := keeper.Proposals.Get(ctx, key.K2())
 		if err != nil {
@@ -142,14 +140,10 @@ func EndBlocker(ctx sdk.Context, keeper *keeper.Keeper) error {
 			// as it could happen due to a governance mistake (governance has let a proposal pass that sends gov funds that were from proposal deposits)
 
 			keeper.Logger(ctx).Error("failed to refund or burn deposits", "error", err)
-			ctx.EventManager().EmitEvent(
-				sdk.NewEvent(
-					types.EventTypeProposalDeposit,
-					sdk.NewAttribute(types.AttributeKeyProposalID, fmt.Sprintf("%d", proposal.Id)),
-					sdk.NewAttribute(types.AttributeKeyProposalDepositError, "failed to refund or burn deposits"),
-					sdk.NewAttribute("error", err.Error()),
-				),
-			)
+			keeper.EventService.EventManager(ctx).Emit(v1.Proposal{
+				Id: proposal.Id,
+				ProposalType: proposal.ProposalType,
+  			})
 		}
 
 		if err = keeper.ActiveProposalsQueue.Remove(ctx, collections.Join(*proposal.VotingEndTime, proposal.Id)); err != nil {
@@ -202,7 +196,7 @@ func EndBlocker(ctx sdk.Context, keeper *keeper.Keeper) error {
 				writeCache()
 
 				// propagate the msg events to the current context
-				ctx.EventManager().EmitEvents(events)
+				k.EventService.EventManager(ctx).Emit(events)
 			} else {
 				proposal.Status = v1.StatusFailed
 				proposal.FailedReason = err.Error()
@@ -267,14 +261,10 @@ func EndBlocker(ctx sdk.Context, keeper *keeper.Keeper) error {
 			"results", logMsg,
 		)
 
-		ctx.EventManager().EmitEvent(
-			sdk.NewEvent(
-				types.EventTypeActiveProposal,
-				sdk.NewAttribute(types.AttributeKeyProposalID, fmt.Sprintf("%d", proposal.Id)),
-				sdk.NewAttribute(types.AttributeKeyProposalResult, tagValue),
-				sdk.NewAttribute(types.AttributeKeyProposalLog, logMsg),
-			),
-		)
+		keeper.EventService.EventManager(ctx).Emit(&v1.Proposal{
+			Id: proposal.Id,
+			ProposalType: proposal.ProposalType,
+		})
 
 		return false, nil
 	})
@@ -296,7 +286,7 @@ func safeExecuteHandler(ctx sdk.Context, msg sdk.Msg, handler baseapp.MsgService
 // failUnsupportedProposal fails a proposal that cannot be processed by gov
 func failUnsupportedProposal(
 	logger log.Logger,
-	ctx sdk.Context,
+	ctx context.Context,
 	keeper *keeper.Keeper,
 	proposal v1.Proposal,
 	errMsg string,
@@ -319,13 +309,10 @@ func failUnsupportedProposal(
 		eventType = types.EventTypeActiveProposal
 	}
 
-	ctx.EventManager().EmitEvent(
-		sdk.NewEvent(
-			eventType,
-			sdk.NewAttribute(types.AttributeKeyProposalID, fmt.Sprintf("%d", proposal.Id)),
-			sdk.NewAttribute(types.AttributeKeyProposalResult, types.AttributeValueProposalFailed),
-		),
-	)
+	keeper.EventService.EventManager(ctx).Emit(&v1.Proposal{
+		Id: proposal.Id,
+		ProposalType: proposal.ProposalType,
+	})
 
 	logger.Info(
 		"proposal failed to decode; deleted",
