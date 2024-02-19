@@ -178,7 +178,7 @@ func (k *Keeper) SetLegacyRouter(router v1beta1.Router) {
 }
 
 // Logger returns a module-specific logger.
-func (k Keeper) Logger(ctx context.Context) log.Logger {
+func (k Keeper) Logger() log.Logger {
 	return k.environment.Logger.With("module", "x/"+types.ModuleName)
 }
 

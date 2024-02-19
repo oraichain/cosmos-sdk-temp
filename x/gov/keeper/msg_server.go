@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"cosmossdk.io/core/event"
 	"cosmossdk.io/errors"
 	"cosmossdk.io/math"
 	govtypes "cosmossdk.io/x/gov/types"
@@ -105,14 +106,18 @@ func (k msgServer) SubmitProposal(ctx context.Context, msg *v1.MsgSubmitProposal
 	}
 
 	if votingStarted {
-		k.environment.EventService.EventManager(ctx).Emit(&v1.MsgSubmitProposal{
-			Proposer: fmt.Sprintf("%d", proposal.Id),
-		})
+		if err := k.environment.EventService.EventManager(ctx).EmitKV(
+			govtypes.EventTypeSubmitProposal,
+			event.NewAttribute(govtypes.AttributeKeyVotingPeriodStart, fmt.Sprintf("%d", proposal.Id)),
+		); err != nil {
+			return nil, errors.Wrapf(err, "failed to emit event: %s", govtypes.EventTypeSubmitProposal)
+		}
 	}
-		return &v1.MsgSubmitProposalResponse{
-			ProposalId: proposal.Id,
-		}, nil
-	}
+
+	return &v1.MsgSubmitProposalResponse{
+		ProposalId: proposal.Id,
+	}, nil
+}
 
 // SubmitMultipleChoiceProposal implements the MsgServer.SubmitMultipleChoiceProposal method.
 func (k msgServer) SubmitMultipleChoiceProposal(ctx context.Context, msg *v1.MsgSubmitMultipleChoiceProposal) (*v1.MsgSubmitMultipleChoiceProposalResponse, error) {
@@ -164,11 +169,13 @@ func (k msgServer) CancelProposal(ctx context.Context, msg *v1.MsgCancelProposal
 		return nil, err
 	}
 
-	k.environment.EventService.EventManager(ctx).Emit(&v1.MsgCancelProposal{
-		Proposer:   msg.Proposer,
-		ProposalId: msg.ProposalId,
-	},
-	)
+	if err := k.environment.EventService.EventManager(ctx).EmitKV(
+		govtypes.EventTypeCancelProposal,
+		event.NewAttribute(sdk.AttributeKeySender, msg.Proposer),
+		event.NewAttribute(govtypes.AttributeKeyProposalID, fmt.Sprint(msg.ProposalId)),
+	); err != nil {
+		return nil, errors.Wrapf(err, "failed to emit event: %s", govtypes.EventTypeCancelProposal)
+	}
 
 	return &v1.MsgCancelProposalResponse{
 		ProposalId:     msg.ProposalId,
@@ -285,9 +292,12 @@ func (k msgServer) Deposit(ctx context.Context, msg *v1.MsgDeposit) (*v1.MsgDepo
 	}
 
 	if votingStarted {
-		k.environment.EventService.EventManager(ctx).Emit(&v1.MsgDeposit{
-			ProposalId: msg.ProposalId,
-		})
+		if err := k.environment.EventService.EventManager(ctx).EmitKV(
+			govtypes.EventTypeProposalDeposit,
+			event.NewAttribute(govtypes.AttributeKeyVotingPeriodStart, fmt.Sprintf("%d", msg.ProposalId)),
+		); err != nil {
+			return nil, errors.Wrapf(err, "failed to emit event: %s", govtypes.EventTypeProposalDeposit)
+		}
 	}
 
 	return &v1.MsgDepositResponse{}, nil
@@ -374,14 +384,20 @@ func (k msgServer) SudoExec(ctx context.Context, msg *v1.MsgSudoExec) (*v1.MsgSu
 
 	// emit the events from the executed message
 	events := msgResp.Events
-	sdkEvents := make([]sdk.Event, 0, len(events))
-	for _, event := range events {
-		sdkEvents = append(sdkEvents, sdk.Event(event))
+	for _, abcievent := range events {
+		for _, attr := range abcievent.Attributes {
+			if err := k.environment.EventService.EventManager(ctx).EmitKV(
+				abcievent.Type,
+				event.NewAttribute(attr.Key, attr.Value),
+			); err != nil {
+				return nil, errors.Wrapf(err, "failed to emit events from sudo-ed message; message %v", sudoedMsg)
+			}
+		}
 	}
-	
-	k.environment.EventService.EventManager(ctx).Emit(&v1.MsgSudoExecResponse{
+
+	return &v1.MsgSudoExecResponse{
 		Result: msgResp.Data,
-	})
+	}, nil
 }
 
 type legacyMsgServer struct {

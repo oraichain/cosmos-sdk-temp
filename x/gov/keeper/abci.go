@@ -20,7 +20,7 @@ import (
 func (k Keeper) EndBlocker(ctx context.Context) error {
 	defer telemetry.ModuleMeasureSince(types.ModuleName, time.Now(), telemetry.MetricKeyEndBlocker)
 
-	logger := k.Logger(ctx)
+	logger := k.Logger()
 	// delete dead proposals from store and returns theirs deposits.
 	// A proposal is dead when it's inactive and didn't get enough deposit on time to get into voting phase.
 	rng := collections.NewPrefixUntilPairRange[time.Time, uint64](k.environment.HeaderService.GetHeaderInfo(ctx).Time)
@@ -138,7 +138,7 @@ func (k Keeper) EndBlocker(ctx context.Context) error {
 			// we do not want to halt the chain if the refund/burn fails
 			// as it could happen due to a governance mistake (governance has let a proposal pass that sends gov funds that were from proposal deposits)
 
-			k.Logger(ctx).Error("failed to refund or burn deposits", "error", err)
+			k.Logger().Error("failed to refund or burn deposits", "error", err)
 			k.environment.EventService.EventManager(ctx).Emit(&v1.Proposal{
 				Id:           proposal.Id,
 				ProposalType: proposal.ProposalType,
