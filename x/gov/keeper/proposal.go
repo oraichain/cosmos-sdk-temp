@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"cosmossdk.io/collections"
+	"cosmossdk.io/core/event"
 	errorsmod "cosmossdk.io/errors"
 	sdkmath "cosmossdk.io/math"
 	"cosmossdk.io/x/gov/types"
@@ -97,7 +98,10 @@ func (k Keeper) SubmitProposal(ctx context.Context, messages []sdk.Msg, metadata
 		if !ok {
 			continue
 		}
-		cacheCtx, _ := sdkCtx.CacheContext()
+		cacheCtx := k.environment.BranchService.Execute(ctx, func(ctx context.Context) error {
+			return nil
+		})
+		
 		if _, err := handler(cacheCtx, msg); err != nil {
 			if errors.Is(types.ErrNoProposalHandlerExists, err) {
 				return v1.Proposal{}, err
@@ -112,7 +116,7 @@ func (k Keeper) SubmitProposal(ctx context.Context, messages []sdk.Msg, metadata
 		return v1.Proposal{}, err
 	}
 
-	submitTime :=	k.HeaderService.GetHeaderInfo(ctx).Time
+	submitTime := k.environment.HeaderService.GetHeaderInfo(ctx).Time
 	proposal, err := v1.NewProposal(messages, proposalID, submitTime, submitTime.Add(*params.MaxDepositPeriod), metadata, title, summary, proposer, proposalType)
 	if err != nil {
 		return v1.Proposal{}, err
@@ -132,12 +136,10 @@ func (k Keeper) SubmitProposal(ctx context.Context, messages []sdk.Msg, metadata
 		return v1.Proposal{}, err
 	}
 
-	sdkCtx.EventManager().EmitEvent(
-		sdk.NewEvent(
-			types.EventTypeSubmitProposal,
-			sdk.NewAttribute(types.AttributeKeyProposalID, fmt.Sprintf("%d", proposalID)),
-			sdk.NewAttribute(types.AttributeKeyProposalMessages, strings.Join(msgs, ",")),
-		),
+	k.environment.EventService.EventManager(ctx).EmitKV(
+		types.EventTypeSubmitProposal,
+		event.NewAttribute(types.AttributeKeyProposalID, fmt.Sprintf("%d", proposalID)),
+		event.NewAttribute(types.AttributeKeyProposalMessages, strings.Join(msgs, ",")),
 	)
 
 	return proposal, nil
@@ -176,7 +178,7 @@ func (k Keeper) CancelProposal(ctx context.Context, proposalID uint64, proposer 
 
 	// Check proposal is not too far in voting period to be canceled
 	if proposal.VotingEndTime != nil {
-		currentTime := k.HeaderService.GetHeaderInfo(ctx).Time
+		currentTime := k.environment.HeaderService.GetHeaderInfo(ctx).Time
 
 		maxCancelPeriodRate := sdkmath.LegacyMustNewDecFromStr(params.ProposalCancelMaxPeriod)
 		maxCancelPeriod := time.Duration(float64(proposal.VotingEndTime.Sub(*proposal.VotingStartTime)) * maxCancelPeriodRate.MustFloat64()).Round(time.Second)
@@ -241,7 +243,7 @@ func (k Keeper) DeleteProposal(ctx context.Context, proposalID uint64) error {
 
 // ActivateVotingPeriod activates the voting period of a proposal
 func (k Keeper) ActivateVotingPeriod(ctx context.Context, proposal v1.Proposal) error {
-	startTime := k.HeaderService.GetHeaderInfo(ctx).Time
+	startTime := k.environment.HeaderService.GetHeaderInfo(ctx).Time
 	proposal.VotingStartTime = &startTime
 
 	params, err := k.Params.Get(ctx)

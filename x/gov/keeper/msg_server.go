@@ -94,8 +94,8 @@ func (k msgServer) SubmitProposal(ctx context.Context, msg *v1.MsgSubmitProposal
 	}
 
 	// ref: https://github.com/cosmos/cosmos-sdk/issues/9683
-	k.gasService.GetGasMeter(ctx).Consume(
-		3*ctx.KVGasConfig().WriteCostPerByte*uint64(len(bytes)),
+	k.environment.GasService.GetGasMeter(ctx).Consume(
+		3*k.environment.GasService.GetGasConfig(ctx).WriteCostPerByte*uint64(len(bytes)),
 		"submit proposal",
 	)
 
@@ -105,7 +105,7 @@ func (k msgServer) SubmitProposal(ctx context.Context, msg *v1.MsgSubmitProposal
 	}
 
 	if votingStarted {
-		k.eventService.EventManager(ctx).Emit(&v1.MsgSubmitProposal{
+		k.environment.EventService.EventManager(ctx).Emit(&v1.MsgSubmitProposal{
 			Proposer: fmt.Sprintf("%d", proposal.Id),
 		})
 	}
@@ -164,7 +164,7 @@ func (k msgServer) CancelProposal(ctx context.Context, msg *v1.MsgCancelProposal
 		return nil, err
 	}
 
-	k.eventService.EventManager(ctx).Emit(&v1.MsgCancelProposal{
+	k.environment.EventService.EventManager(ctx).Emit(&v1.MsgCancelProposal{
 		Proposer:   msg.Proposer,
 		ProposalId: msg.ProposalId,
 	},
@@ -172,8 +172,8 @@ func (k msgServer) CancelProposal(ctx context.Context, msg *v1.MsgCancelProposal
 
 	return &v1.MsgCancelProposalResponse{
 		ProposalId:     msg.ProposalId,
-		CanceledTime:   k.headerService.GetHeaderInfo(ctx).Time,
-		CanceledHeight: uint64(k.headerService.GetHeaderInfo(ctx).Height),
+		CanceledTime:   k.environment.HeaderService.GetHeaderInfo(ctx).Time,
+		CanceledHeight: uint64(k.environment.HeaderService.GetHeaderInfo(ctx).Height),
 	}, nil
 }
 
@@ -285,7 +285,7 @@ func (k msgServer) Deposit(ctx context.Context, msg *v1.MsgDeposit) (*v1.MsgDepo
 	}
 
 	if votingStarted {
-		k.eventService.EventManager(ctx).Emit(&v1.MsgDeposit{
+		k.environment.EventService.EventManager(ctx).Emit(&v1.MsgDeposit{
 			ProposalId: msg.ProposalId,
 		})
 	}
@@ -378,10 +378,10 @@ func (k msgServer) SudoExec(ctx context.Context, msg *v1.MsgSudoExec) (*v1.MsgSu
 	for _, event := range events {
 		sdkEvents = append(sdkEvents, sdk.Event(event))
 	}
-	k.EventService.EventManager(ctx).Emit(sdkEvents)
-	return &v1.MsgSudoExecResponse{
+	
+	k.environment.EventService.EventManager(ctx).Emit(&v1.MsgSudoExecResponse{
 		Result: msgResp.Data,
-	}, nil
+	})
 }
 
 type legacyMsgServer struct {

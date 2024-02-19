@@ -1,11 +1,13 @@
 package keeper_test
 
 import (
+	"cosmossdk.io/log"
 	storetypes "cosmossdk.io/store/types"
 	"cosmossdk.io/x/params"
 	paramskeeper "cosmossdk.io/x/params/keeper"
 
 	"github.com/cosmos/cosmos-sdk/codec"
+	"github.com/cosmos/cosmos-sdk/runtime"
 	sdktestutil "github.com/cosmos/cosmos-sdk/testutil"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	moduletestutil "github.com/cosmos/cosmos-sdk/types/module/testutil"
@@ -17,9 +19,10 @@ func testComponents() (*codec.LegacyAmino, sdk.Context, storetypes.StoreKey, sto
 
 	legacyAmino := createTestCodec()
 	mkey := storetypes.NewKVStoreKey("test")
+	env := runtime.NewEnvironment(runtime.NewKVStoreService(mkey), log.NewNopLogger())
 	tkey := storetypes.NewTransientStoreKey("transient_test")
 	ctx := sdktestutil.DefaultContext(mkey, tkey)
-	keeper := paramskeeper.NewKeeper(cdc, legacyAmino, mkey, tkey)
+	keeper := paramskeeper.NewKeeper(cdc, env, legacyAmino, mkey, tkey)
 
 	return legacyAmino, ctx, mkey, tkey, keeper
 }

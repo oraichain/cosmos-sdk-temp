@@ -9,6 +9,7 @@ import (
 	dbm "github.com/cosmos/cosmos-db"
 	"github.com/stretchr/testify/suite"
 
+	"cosmossdk.io/core/appmodule"
 	"cosmossdk.io/log"
 	"cosmossdk.io/store"
 	"cosmossdk.io/store/metrics"
@@ -25,6 +26,7 @@ type SubspaceTestSuite struct {
 	suite.Suite
 
 	cdc   codec.Codec
+	env   appmodule.Environment
 	amino *codec.LegacyAmino
 	ctx   sdk.Context
 	ss    types.Subspace
@@ -42,7 +44,7 @@ func (suite *SubspaceTestSuite) SetupTest() {
 	suite.cdc = encodingConfig.Codec
 	suite.amino = encodingConfig.Amino
 
-	ss := types.NewSubspace(suite.cdc, suite.amino, key, tkey, "testsubspace")
+	ss := types.NewSubspace(suite.cdc, suite.env, suite.amino, key, tkey, "testsubspace")
 	suite.ctx = sdk.NewContext(ms, false, log.NewNopLogger())
 	suite.ss = ss.WithKeyTable(paramKeyTable())
 }
@@ -53,7 +55,7 @@ func (suite *SubspaceTestSuite) TestKeyTable() {
 		suite.ss.WithKeyTable(paramKeyTable())
 	})
 	suite.Require().NotPanics(func() {
-		ss := types.NewSubspace(suite.cdc, suite.amino, key, tkey, "testsubspace2")
+		ss := types.NewSubspace(suite.cdc, suite.env, suite.amino, key, tkey, "testsubspace2")
 		_ = ss.WithKeyTable(paramKeyTable())
 	})
 }

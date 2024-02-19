@@ -107,7 +107,7 @@ func initFixture(tb testing.TB) *fixture {
 
 	govKeeper := keeper.NewKeeper(
 		cdc,
-		runtime.NewKVStoreService(keys[types.StoreKey]),
+		runtime.NewEnvironment(runtime.NewKVStoreService(keys[types.StoreKey]), log.NewNopLogger()),
 		accountKeeper,
 		bankKeeper,
 		stakingKeeper,

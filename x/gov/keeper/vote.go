@@ -78,7 +78,7 @@ func (k Keeper) AddVote(ctx context.Context, proposalID uint64, voterAddr sdk.Ac
 		return err
 	}
 
-	k.EventService.EventManager(ctx).Emit(&v1.Vote{
+	k.environment.EventService.EventManager(ctx).Emit(&v1.Vote{
 		ProposalId: proposalID,
 		Voter:      voterAddr.String(),
 		Options:    options,

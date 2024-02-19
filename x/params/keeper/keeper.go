@@ -1,18 +1,21 @@
 package keeper
 
 import (
+	"context"
+
+	"cosmossdk.io/core/appmodule"
 	"cosmossdk.io/log"
 	storetypes "cosmossdk.io/store/types"
 	"cosmossdk.io/x/params/types"
 	"cosmossdk.io/x/params/types/proposal"
 
 	"github.com/cosmos/cosmos-sdk/codec"
-	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 
 // Keeper of the global paramstore
 type Keeper struct {
 	cdc         codec.BinaryCodec
+	environment appmodule.Environment
 	legacyAmino *codec.LegacyAmino
 	key         storetypes.StoreKey
 	tkey        storetypes.StoreKey
@@ -20,9 +23,10 @@ type Keeper struct {
 }
 
 // NewKeeper constructs a params keeper
-func NewKeeper(cdc codec.BinaryCodec, legacyAmino *codec.LegacyAmino, key, tkey storetypes.StoreKey) Keeper {
+func NewKeeper(cdc codec.BinaryCodec, env appmodule.Environment, legacyAmino *codec.LegacyAmino, key, tkey storetypes.StoreKey) Keeper {
 	return Keeper{
 		cdc:         cdc,
+		environment: env,
 		legacyAmino: legacyAmino,
 		key:         key,
 		tkey:        tkey,
@@ -31,8 +35,8 @@ func NewKeeper(cdc codec.BinaryCodec, legacyAmino *codec.LegacyAmino, key, tkey 
 }
 
 // Logger returns a module-specific logger.
-func (k Keeper) Logger(ctx sdk.Context) log.Logger {
-	return ctx.Logger().With("module", "x/"+proposal.ModuleName)
+func (k Keeper) Logger(ctx context.Context) log.Logger {
+	return k.environment.Logger.With("module", "x/"+proposal.ModuleName)
 }
 
 // Allocate subspace used for keepers
@@ -46,7 +50,7 @@ func (k Keeper) Subspace(s string) types.Subspace {
 		panic("cannot use empty string for subspace")
 	}
 
-	space := types.NewSubspace(k.cdc, k.legacyAmino, k.key, k.tkey, s)
+	space := types.NewSubspace(k.cdc, k.environment, k.legacyAmino, k.key, k.tkey, s)
 	k.spaces[s] = &space
 
 	return space

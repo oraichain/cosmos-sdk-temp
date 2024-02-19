@@ -206,7 +206,7 @@ func (AppModule) ConsensusVersion() uint64 { return ConsensusVersion }
 // EndBlock returns the end blocker for the gov module. It returns no validator
 // updates.
 func (am AppModule) EndBlock(ctx context.Context) error {
-	return EndBlocker(ctx, am.keeper)
+	return am.keeper.EndBlocker(ctx)
 }
 
 // AppModuleSimulation functions

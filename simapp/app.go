@@ -386,7 +386,7 @@ func NewSimApp(
 		Example of setting gov params:
 		govConfig.MaxMetadataLen = 10000
 	*/
-	govKeeper := govkeeper.NewKeeper(NewEnvironment(runtime.NewKVStoreService(keys[govtypes.StoreKey]), app.AuthKeeper, app.BankKeeper,
+	govKeeper := govkeeper.NewKeeper(runtime.NewEnvironment(runtime.NewKVStoreService(keys[govtypes.StoreKey]), logger), app.AuthKeeper, app.BankKeeper,
 		app.StakingKeeper, app.PoolKeeper, app.MsgServiceRouter(), govConfig, authtypes.NewModuleAddress(govtypes.ModuleName).String(),
 	)
 

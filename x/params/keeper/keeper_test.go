@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
+	"cosmossdk.io/log"
 	"cosmossdk.io/math"
 	"cosmossdk.io/store/prefix"
 	storetypes "cosmossdk.io/store/types"
@@ -16,6 +17,7 @@ import (
 	"cosmossdk.io/x/params/types/proposal"
 
 	"github.com/cosmos/cosmos-sdk/baseapp"
+	"github.com/cosmos/cosmos-sdk/runtime"
 	"github.com/cosmos/cosmos-sdk/testutil"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	moduletestutil "github.com/cosmos/cosmos-sdk/types/module/testutil"
@@ -32,10 +34,11 @@ type KeeperTestSuite struct {
 func (suite *KeeperTestSuite) SetupTest() {
 	encodingCfg := moduletestutil.MakeTestEncodingConfig(params.AppModuleBasic{})
 	key := storetypes.NewKVStoreKey(types.StoreKey)
+	env := runtime.NewEnvironment(runtime.NewKVStoreService(key), log.NewNopLogger())
 	tkey := storetypes.NewTransientStoreKey("params_transient_test")
 
 	suite.ctx = testutil.DefaultContext(key, tkey)
-	suite.paramsKeeper = keeper.NewKeeper(encodingCfg.Codec, encodingCfg.Amino, key, tkey)
+	suite.paramsKeeper = keeper.NewKeeper(encodingCfg.Codec, env, encodingCfg.Amino, key, tkey)
 	suite.paramsKeeper.Subspace("bank")
 	suite.paramsKeeper.Subspace("staking")
 

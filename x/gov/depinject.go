@@ -10,7 +10,6 @@ import (
 
 	modulev1 "cosmossdk.io/api/cosmos/gov/module/v1"
 	"cosmossdk.io/core/appmodule"
-	store "cosmossdk.io/core/store"
 	"cosmossdk.io/depinject"
 	"cosmossdk.io/depinject/appconfig"
 	authtypes "cosmossdk.io/x/auth/types"
@@ -39,7 +38,7 @@ type ModuleInputs struct {
 
 	Config           *modulev1.Module
 	Cdc              codec.Codec
-	StoreService     store.KVStoreService
+	Environment      appmodule.Environment
 	ModuleKey        depinject.OwnModuleKey
 	MsgServiceRouter baseapp.MessageRouter
 
@@ -77,7 +76,7 @@ func ProvideModule(in ModuleInputs) ModuleOutputs {
 
 	k := keeper.NewKeeper(
 		in.Cdc,
-		in.StoreService,
+		in.Environment,
 		in.AccountKeeper,
 		in.BankKeeper,
 		in.StakingKeeper,

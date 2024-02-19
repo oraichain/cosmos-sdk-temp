@@ -83,7 +83,7 @@ func TestHooks(t *testing.T) {
 	newHeader := ctx.HeaderInfo()
 	newHeader.Time = ctx.HeaderInfo().Time.Add(*params.MaxDepositPeriod).Add(time.Duration(1) * time.Second)
 	ctx = ctx.WithHeaderInfo(newHeader)
-	err = gov.EndBlocker(ctx, govKeeper)
+	err = govKeeper.EndBlocker(ctx)
 	require.NoError(t, err)
 
 	require.True(t, govHooksReceiver.AfterProposalFailedMinDepositValid)
@@ -103,7 +103,7 @@ func TestHooks(t *testing.T) {
 	newHeader = ctx.HeaderInfo()
 	newHeader.Time = ctx.HeaderInfo().Time.Add(*params.VotingPeriod).Add(time.Duration(1) * time.Second)
 	ctx = ctx.WithHeaderInfo(newHeader)
-	err = gov.EndBlocker(ctx, govKeeper)
+	err = govKeeper.EndBlocker(ctx)
 	require.NoError(t, err)
 	require.True(t, govHooksReceiver.AfterProposalVotingPeriodEndedValid)
 }

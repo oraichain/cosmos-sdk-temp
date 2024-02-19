@@ -30,6 +30,7 @@ func init() {
 type ModuleInputs struct {
 	depinject.In
 
+	env               appmodule.Environment
 	KvStoreKey        *store.KVStoreKey
 	TransientStoreKey *store.TransientStoreKey
 	Cdc               codec.Codec
@@ -41,11 +42,11 @@ type ModuleOutputs struct {
 
 	ParamsKeeper keeper.Keeper
 	Module       appmodule.AppModule
-	GovHandler   govv1beta1.HandlerRoute
+	GovHandler   govv1beta1.HandlerRoutex
 }
 
 func ProvideModule(in ModuleInputs) ModuleOutputs {
-	k := keeper.NewKeeper(in.Cdc, in.LegacyAmino, in.KvStoreKey, in.TransientStoreKey)
+	k := keeper.NewKeeper(in.Cdc, in.env, in.LegacyAmino, in.KvStoreKey, in.TransientStoreKey)
 
 	m := NewAppModule(k)
 	govHandler := govv1beta1.HandlerRoute{RouteKey: proposal.RouterKey, Handler: NewParamChangeProposalHandler(k)}

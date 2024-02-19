@@ -11,11 +11,12 @@ import (
 
 // Environment is used to get all services to their respective module
 type Environment struct {
-	BranchService   branch.Service
-	EventService    event.Service
-	GasService      gas.Service
-	HeaderService   header.Service
-	KVStoreService  store.KVStoreService
-	MemStoreService store.MemoryStoreService
-	Logger          log.Logger
+	BranchService         branch.Service
+	EventService          event.Service
+	GasService            gas.Service
+	HeaderService         header.Service
+	KVStoreService        store.KVStoreService
+	MemStoreService       store.MemoryStoreService
+	TransientStoreService store.TransientStoreService
+	Logger                log.Logger
 }

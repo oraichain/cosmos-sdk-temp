@@ -1,9 +1,11 @@
 package types
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 
+	"cosmossdk.io/core/appmodule"
 	"cosmossdk.io/store/prefix"
 	storetypes "cosmossdk.io/store/types"
 
@@ -24,6 +26,7 @@ const (
 // recording whether the parameter has been changed or not
 type Subspace struct {
 	cdc         codec.BinaryCodec
+	environment appmodule.Environment
 	legacyAmino *codec.LegacyAmino
 	key         storetypes.StoreKey // []byte -> []byte, stores parameter
 	tkey        storetypes.StoreKey // []byte -> bool, stores parameter change
@@ -32,9 +35,10 @@ type Subspace struct {
 }
 
 // NewSubspace constructs a store with namestore
-func NewSubspace(cdc codec.BinaryCodec, legacyAmino *codec.LegacyAmino, key, tkey storetypes.StoreKey, name string) Subspace {
+func NewSubspace(cdc codec.BinaryCodec, env appmodule.Environment, legacyAmino *codec.LegacyAmino, key, tkey storetypes.StoreKey, name string) Subspace {
 	return Subspace{
 		cdc:         cdc,
+		environment: env,
 		legacyAmino: legacyAmino,
 		key:         key,
 		tkey:        tkey,
@@ -86,7 +90,7 @@ func (s Subspace) transientStore(ctx sdk.Context) storetypes.KVStore {
 
 // Validate attempts to validate a parameter value by its key. If the key is not
 // registered or if the validation of the value fails, an error is returned.
-func (s Subspace) Validate(ctx sdk.Context, key []byte, value interface{}) error {
+func (s Subspace) Validate(ctx context.Context, key []byte, value interface{}) error {
 	attr, ok := s.table.m[string(key)]
 	if !ok {
 		return fmt.Errorf("parameter %s not registered", key)
@@ -104,9 +108,8 @@ func (s Subspace) Validate(ctx sdk.Context, key []byte, value interface{}) error
 func (s Subspace) Get(ctx sdk.Context, key []byte, ptr interface{}) {
 	s.checkType(key, ptr)
 
-	store := s.kvStore(ctx)
-	bz := store.Get(key)
-
+	store := s.environment.KVStoreService.OpenKVStore(ctx)
+	bz, _ := store.Get(key)
 	if err := s.legacyAmino.UnmarshalJSON(bz, ptr); err != nil {
 		panic(err)
 	}
@@ -115,9 +118,9 @@ func (s Subspace) Get(ctx sdk.Context, key []byte, ptr interface{}) {
 // GetIfExists queries for a parameter by key from the Subspace's KVStore and
 // sets the value to the provided pointer. If the value does not exist, it will
 // perform a no-op.
-func (s Subspace) GetIfExists(ctx sdk.Context, key []byte, ptr interface{}) {
-	store := s.kvStore(ctx)
-	bz := store.Get(key)
+func (s Subspace) GetIfExists(ctx context.Context, key []byte, ptr interface{}) {
+	store := s.environment.KVStoreService.OpenKVStore(ctx)
+	bz, _ := store.Get(key)
 	if bz == nil {
 		return
 	}
@@ -186,9 +189,9 @@ func (s Subspace) checkType(key []byte, value interface{}) {
 // been registered. It will panic if the parameter type has not been registered
 // or if the value cannot be encoded. A change record is also set in the Subspace's
 // transient KVStore to mark the parameter as modified.
-func (s Subspace) Set(ctx sdk.Context, key []byte, value interface{}) {
+func (s Subspace) Set(ctx context.Context, key []byte, value interface{}) {
 	s.checkType(key, value)
-	store := s.kvStore(ctx)
+	store := s.environment.KVStoreService.OpenKVStore(ctx)
 
 	bz, err := s.legacyAmino.MarshalJSON(value)
 	if err != nil {
@@ -197,7 +200,7 @@ func (s Subspace) Set(ctx sdk.Context, key []byte, value interface{}) {
 
 	store.Set(key, bz)
 
-	tstore := s.transientStore(ctx)
+	tstore := s.environment.TransientStoreService.OpenTransientStore(ctx)
 	tstore.Set(key, []byte{})
 }
 
@@ -207,7 +210,7 @@ func (s Subspace) Set(ctx sdk.Context, key []byte, value interface{}) {
 // if the raw value is not compatible with the registered type for the parameter
 // key or if the new value is invalid as determined by the registered type's
 // validation function.
-func (s Subspace) Update(ctx sdk.Context, key, value []byte) error {
+func (s Subspace) Update(ctx context.Context, key, value []byte) error {
 	attr, ok := s.table.m[string(key)]
 	if !ok {
 		panic(fmt.Sprintf("parameter %s not registered", key))
@@ -216,6 +219,7 @@ func (s Subspace) Update(ctx sdk.Context, key, value []byte) error {
 	ty := attr.ty
 	dest := reflect.New(ty).Interface()
 	s.GetIfExists(ctx, key, dest)
+	s.environment.KVStoreService.OpenKVStore(ctx).Set(key, value)
 
 	if err := s.legacyAmino.UnmarshalJSON(value, dest); err != nil {
 		return err

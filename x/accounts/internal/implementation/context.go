@@ -149,7 +149,9 @@ var _ gas.Service = (*gasService)(nil)
 type gasService struct{ gs gas.Service }
 
 func (g gasService) GetGasMeter(ctx context.Context) gas.Meter {
-	return g.gs.GetGasMeter(getParentContext(ctx))
+    return g.gs.GetGasMeter(getParentContext(ctx))
+func (g gasService) GetGasConfig(ctx context.Context) gas.GasConfig {
+	return g.gs.GetGasConfig(getParentContext(ctx))
 }
 
 func (g gasService) GetBlockGasMeter(ctx context.Context) gas.Meter {
