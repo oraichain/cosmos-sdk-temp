@@ -192,7 +192,7 @@ func (m *Metrics) gatherPrometheus() (GatherResponse, error) {
 	buf := &bytes.Buffer{}
 	defer buf.Reset()
 
-	e := expfmt.NewEncoder(buf, FormatText)
+	e := expfmt.NewEncoder(buf, expfmt.NewFormat(expfmt.TypeTextPlain))
 
 	for _, mf := range metricsFamilies {
 		if err := e.Encode(mf); err != nil {
