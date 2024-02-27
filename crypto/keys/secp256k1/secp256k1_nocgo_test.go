@@ -4,9 +4,12 @@
 package secp256k1
 
 import (
+	"encoding/hex"
+	"strconv"
 	"testing"
 
 	secp256k1 "github.com/btcsuite/btcd/btcec/v2"
+	"github.com/btcsuite/btcd/btcec/v2/ecdsa"
 	"github.com/stretchr/testify/require"
 )
 
@@ -45,4 +48,36 @@ func TestSignatureVerificationAndRejectUpperS(t *testing.T) {
 			priv,
 		)
 	}
+}
+
+func SignEip191(priv *PrivKey, msg []byte) ([]byte, error) {
+	msgHash := keccak256(msg)
+
+	secp256k1Priv, _ := secp256k1.PrivKeyFromBytes(priv.Key)
+
+	sig, err := ecdsa.SignCompact(secp256k1Priv, msgHash, false)
+	if err != nil {
+		return nil, err
+	}
+	return sig[1:], nil
+}
+
+func TestSignatureVerificationMetamask(t *testing.T) {
+	msg := []byte("We have lingered long enough on the shores of the cosmic ocean.")
+	priv := GenPrivKey()
+
+	bz := append(
+		[]byte("\x19Ethereum Signed Message:\n"),
+		[]byte(strconv.Itoa(len(msg)))...,
+	)
+
+	bz = append(bz, msg...)
+
+	sig, err := SignEip191(priv, bz)
+	require.NoError(t, err)
+
+	println("signature", hex.EncodeToString(sig))
+
+	pub, _ := priv.PubKey().(*PubKey)
+	require.True(t, pub.VerifySignatureEip191(bz, sig))
 }
