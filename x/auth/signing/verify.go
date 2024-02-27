@@ -2,11 +2,13 @@ package signing
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 
 	signingv1beta1 "cosmossdk.io/api/cosmos/tx/signing/v1beta1"
 	txsigning "cosmossdk.io/x/tx/signing"
 
+	"github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	cryptotypes "github.com/cosmos/cosmos-sdk/crypto/types"
 	"github.com/cosmos/cosmos-sdk/crypto/types/multisig"
 	"github.com/cosmos/cosmos-sdk/types/tx/signing"
@@ -36,6 +38,8 @@ func APISignModeToInternal(mode signingv1beta1.SignMode) (signing.SignMode, erro
 		return signing.SignMode_SIGN_MODE_TEXTUAL, nil
 	case signingv1beta1.SignMode_SIGN_MODE_DIRECT_AUX:
 		return signing.SignMode_SIGN_MODE_DIRECT_AUX, nil
+	case signingv1beta1.SignMode_SIGN_MODE_EIP_191:
+		return signing.SignMode_SIGN_MODE_EIP_191, nil
 	default:
 		return signing.SignMode_SIGN_MODE_UNSPECIFIED, fmt.Errorf("unsupported sign mode %s", mode)
 	}
@@ -52,6 +56,8 @@ func internalSignModeToAPI(mode signing.SignMode) (signingv1beta1.SignMode, erro
 		return signingv1beta1.SignMode_SIGN_MODE_TEXTUAL, nil
 	case signing.SignMode_SIGN_MODE_DIRECT_AUX:
 		return signingv1beta1.SignMode_SIGN_MODE_DIRECT_AUX, nil
+	case signing.SignMode_SIGN_MODE_EIP_191:
+		return signingv1beta1.SignMode_SIGN_MODE_EIP_191, nil
 	default:
 		return signingv1beta1.SignMode_SIGN_MODE_UNSPECIFIED, fmt.Errorf("unsupported sign mode %s", mode)
 	}
@@ -70,6 +76,7 @@ func VerifySignature(
 	switch data := signatureData.(type) {
 	case *signing.SingleSignatureData:
 		signMode, err := internalSignModeToAPI(data.SignMode)
+
 		if err != nil {
 			return err
 		}
@@ -77,8 +84,22 @@ func VerifySignature(
 		if err != nil {
 			return err
 		}
-		if !pubKey.VerifySignature(signBytes, data.Signature) {
-			return fmt.Errorf("unable to verify single signer signature")
+
+		if data.SignMode == signing.SignMode_SIGN_MODE_EIP_191 {
+			// do this to not have to register a new type of pubkey like here:
+			// https://github.com/scrtlabs/cosmos-sdk/blob/07817ad365/crypto/keys/secp256k1/keys.pb.go#L120
+			secp256k1PubKey, ok := pubKey.(*secp256k1.PubKey)
+			if !ok {
+				return fmt.Errorf("eip191 sign mode requires pubkey to be of type cosmos.crypto.secp256k1.PubKey")
+			}
+
+			if !secp256k1PubKey.VerifySignatureEip191(signBytes, data.Signature) {
+				return fmt.Errorf("unable to verify single signer eip191 signature %s for signBytes %s", hex.EncodeToString(data.Signature), hex.EncodeToString(signBytes))
+			}
+		} else {
+			if !pubKey.VerifySignature(signBytes, data.Signature) {
+				return fmt.Errorf("unable to verify single signer signature")
+			}
 		}
 		return nil
 

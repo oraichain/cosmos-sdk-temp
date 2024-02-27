@@ -9,6 +9,7 @@ import (
 	"github.com/cometbft/cometbft/crypto"
 	secp256k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4/ecdsa"
+	"golang.org/x/crypto/sha3"
 )
 
 // Sign creates an ECDSA signature on curve Secp256k1, using SHA256 on the msg.
@@ -37,6 +38,29 @@ func (pubKey *PubKey) VerifySignature(msg, sigStr []byte) bool {
 		return false
 	}
 	return signature.Verify(crypto.Sha256(msg), pub)
+}
+
+// VerifySignatureEip191 works same as VerifyBytes except using keccak256
+func (pubKey *PubKey) VerifySignatureEip191(msg, sigStr []byte) bool {
+	if len(sigStr) != 64 {
+		return false
+	}
+	pub, err := secp256k1.ParsePubKey(pubKey.Key)
+	if err != nil {
+		return false
+	}
+	// parse the signature, will return error if it is not in lower-S form
+	signature, err := signatureFromBytes(sigStr)
+	if err != nil {
+		return false
+	}
+	return signature.Verify(keccak256(msg), pub)
+}
+
+func keccak256(bytes []byte) []byte {
+	hasher := sha3.NewLegacyKeccak256()
+	hasher.Write(bytes)
+	return hasher.Sum(nil)
 }
 
 // Read Signature struct from R || S. Caller needs to ensure
