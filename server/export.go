@@ -104,7 +104,15 @@ func ExportCmd(appExporter types.AppExporter, defaultNodeHome string) *cobra.Com
 				return err
 			}
 
-			cmd.Println(string(sdk.MustSortJSON(encoded)))
+			// cmd.Println(string(sdk.MustSortJSON(encoded)))
+			outputDocument, _ := cmd.Flags().GetString(flags.FlagOutputDocument)
+			if outputDocument == "" {
+				cmd.Println(string(sdk.MustSortJSON(encoded)))
+			}
+
+			if err = doc.SaveAs(outputDocument); err != nil {
+				return err
+			}
 			return nil
 		},
 	}
@@ -113,6 +121,7 @@ func ExportCmd(appExporter types.AppExporter, defaultNodeHome string) *cobra.Com
 	cmd.Flags().Int64(FlagHeight, -1, "Export state from a particular height (-1 means latest height)")
 	cmd.Flags().Bool(FlagForZeroHeight, false, "Export state to start at height zero (perform preproccessing)")
 	cmd.Flags().StringSlice(FlagJailAllowedAddrs, []string{}, "Comma-separated list of operator addresses of jailed validators to unjail")
+	cmd.Flags().String(flags.FlagOutputDocument, "", "Exported state is written to the given file instead of STDOUT")
 
 	return cmd
 }
